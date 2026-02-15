@@ -20,7 +20,7 @@ class ProductController extends Controller
 
         // ✅ 1 seul produit par groupe (anti-duplication)
         $query = Product::active()
-            ->select('products.*')
+            ->select('products.*') // tu peux réduire ici si ton ProductResource n'a pas besoin de tout
             ->whereIn('products.id', function ($sub) {
                 $sub->selectRaw('MIN(id)')
                     ->from('products')
@@ -28,11 +28,19 @@ class ProductController extends Controller
                     ->groupBy(DB::raw('COALESCE(group_id, id)'));
             })
             ->with([
+                // ✅ listing: seulement ce qui sert à afficher une carte produit
                 'mainImage',
                 'hoverImage',
-                'images',
-                'categories.parent', // ✅ utile pour deviner nutrition => flavor
-                'group',             // ✅ pour type color/flavor
+
+                // ⚠️ 'images' retiré du listing (trop lourd) => garde-le dans show()
+                // 'images',
+
+                // si ton listing affiche des badges/catégories
+                'categories:id,slug,parent_id',
+                'categories.parent:id,slug,parent_id',
+
+                // si tu affiches un "type" / variantes / etc.
+                'group:id',
                 'options' => fn ($q) => $q->where('type', 'size')->orderBy('position'),
             ]);
 

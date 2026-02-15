@@ -46,6 +46,8 @@ class CartController extends Controller
             return response()->json(['message' => 'Stock insuffisant'], 422);
         }
 
+        // ✅ FIX: firstOrNew pour éviter INSERT sans quantity
+        $item = CartItem::firstOrNew([
         // ✅ firstOrNew pour éviter INSERT sans quantity
         $item = CartItem::firstOrNew([
             'cart_id' => $cart->id,
