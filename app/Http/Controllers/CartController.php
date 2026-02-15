@@ -6,6 +6,7 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\StockLot;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class CartController extends Controller
 {
@@ -36,7 +37,7 @@ class CartController extends Controller
 
         // Vérif stock réel
         $stock = StockLot::where('product_id', $data['product_id'])
-            ->when($data['product_option_id'] ?? null, fn($q) =>
+            ->when($data['product_option_id'] ?? null, fn ($q) =>
             $q->where('product_option_id', $data['product_option_id'])
             )
             ->sum('quantity');
@@ -111,10 +112,11 @@ class CartController extends Controller
                 'id'         => $item->id,
                 'product_id' => $item->product_id,
                 'name'       => $product->name,
-                'image'      => $product->main_image,
+                // ✅ IMPORTANT : renvoyer URL publique, pas "products/..."
+                'image'      => $this->publicImageUrl($product->main_image) ?? '/placeholder.jpg',
                 'quantity'   => (int) $item->quantity,
-                'unit_price' => round((float)$unit, 2),
-                'line_total' => round((float)$unit * (int)$item->quantity, 2),
+                'unit_price' => round((float) $unit, 2),
+                'line_total' => round((float) $unit * (int) $item->quantity, 2),
                 'variant_title' => $variantValue ? $variantTitle : null,
                 'variant_value' => $variantValue ?: null,
                 'size'          => $sizeLabel,
@@ -135,5 +137,32 @@ class CartController extends Controller
             'subtotal' => round($subtotal, 2),
             'currency' => 'EUR',
         ];
+    }
+
+    /**
+     * Transforme "products/xxx.jpg" (DB) en URL publique "/storage/products/xxx.jpg"
+     * ou laisse tel quel si déjà une URL absolue.
+     */
+    private function publicImageUrl(?string $path): ?string
+    {
+        if (!$path) return null;
+
+        // Déjà une URL complète
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
+
+        // Normalise
+        $path = ltrim($path, '/');
+
+        // DB contient déjà storage/...
+        if (Str::startsWith($path, 'storage/')) {
+            return url('/' . $path);
+        }
+
+        // DB contient products/...
+        return url('/storage/' . $path);
+
+        // fallback générique
     }
 }
