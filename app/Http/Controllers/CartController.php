@@ -48,8 +48,6 @@ class CartController extends Controller
 
         // ✅ FIX: firstOrNew pour éviter INSERT sans quantity
         $item = CartItem::firstOrNew([
-        // ✅ firstOrNew pour éviter INSERT sans quantity
-        $item = CartItem::firstOrNew([
             'cart_id' => $cart->id,
             'product_id' => $data['product_id'],
             'product_option_id' => $data['product_option_id'] ?? null
