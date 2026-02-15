@@ -12,6 +12,12 @@ class ProductController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        // ✅ Pagination safe
+        $defaultPerPage = 12;
+        $maxPerPage = 60;
+        $perPage = (int) $request->query('per_page', $defaultPerPage);
+        $perPage = max(1, min($perPage, $maxPerPage));
+
         // ✅ 1 seul produit par groupe (anti-duplication)
         $query = Product::active()
             ->select('products.*')
@@ -37,8 +43,10 @@ class ProductController extends Controller
         | femmes / hommes / nutrition / equipments
         */
         if ($request->filled('gender')) {
-            $query->whereHas('categories', function ($q) use ($request) {
-                $q->where('slug', 'like', $request->gender . '%');
+            $gender = (string) $request->query('gender');
+
+            $query->whereHas('categories', function ($q) use ($gender) {
+                $q->where('slug', 'like', $gender . '%');
             });
         }
 
@@ -48,18 +56,17 @@ class ProductController extends Controller
         |--------------------------------------------------------------------------
         */
         if ($request->filled('category')) {
+            $category = (string) $request->query('category');
 
             if ($request->filled('gender')) {
-                $query->whereHas('categories', function ($q) use ($request) {
-                    $q->where(
-                        'slug',
-                        'like',
-                        $request->gender . '%-' . $request->category
-                    );
+                $gender = (string) $request->query('gender');
+
+                $query->whereHas('categories', function ($q) use ($gender, $category) {
+                    $q->where('slug', 'like', $gender . '%-' . $category);
                 });
             } else {
-                $query->whereHas('categories', function ($q) use ($request) {
-                    $q->where('slug', 'like', '%-' . $request->category);
+                $query->whereHas('categories', function ($q) use ($category) {
+                    $q->where('slug', 'like', '%-' . $category);
                 });
             }
         }
@@ -70,7 +77,7 @@ class ProductController extends Controller
         |--------------------------------------------------------------------------
         */
         if ($request->filled('tag')) {
-            $tag = (string) $request->get('tag');
+            $tag = (string) $request->query('tag');
 
             if ($tag === 'new') {
                 $query->orderByDesc('created_at')->orderByDesc('products.id');
@@ -82,8 +89,6 @@ class ProductController extends Controller
         } else {
             $query->orderByDesc('products.id');
         }
-
-        $perPage = (int) $request->get('per_page', $defaultPerPage);
 
         return ProductResource::collection(
             $query->paginate($perPage)

@@ -115,4 +115,15 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Support Address (custom)
+    |--------------------------------------------------------------------------
+    |
+    | Address used as "Reply-To" for transactional emails.
+    |
+    */
+
+    'support_address' => env('MAIL_SUPPORT_ADDRESS'),
+
 ];
