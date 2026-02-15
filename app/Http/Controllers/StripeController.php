@@ -7,6 +7,7 @@ use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Shipment;
 use App\Models\WebhookEvent;
+use App\Notifications\OrderConfirmed;
 use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -37,7 +38,7 @@ class StripeController extends Controller
             'shipping.phone'     => ['nullable', 'string'],
         ]);
 
-        // ✅ Assure 1 panier par user (ton unique user_id) + charge items
+        // ✅ Assure 1 panier par user + charge items
         $cart = $user->cart()->firstOrCreate(['user_id' => $user->id]);
 
         $cartItems = $cart->items()
@@ -51,7 +52,6 @@ class StripeController extends Controller
             'cart_items_ids' => $cartItems->pluck('id')->all(),
         ]);
 
-
         if ($cartItems->isEmpty()) {
             return response()->json(['message' => 'Panier vide'], 400);
         }
@@ -59,14 +59,12 @@ class StripeController extends Controller
         $stripe = new StripeClient(config('services.stripe.secret', env('STRIPE_SECRET')));
 
         return DB::transaction(function () use ($user, $cartItems, $data, $stripe) {
-
             // 1) Totaux depuis DB (source de vérité)
             $totalTtc = 0.0;
             $totalHt  = 0.0;
 
             foreach ($cartItems as $ci) {
                 $product = $ci->product;
-
                 if (!$product) {
                     abort(422, 'Produit introuvable dans le panier.');
                 }
@@ -140,7 +138,9 @@ class StripeController extends Controller
             $intent = $stripe->paymentIntents->create([
                 'amount'   => (int) round($totalTtc * 100),
                 'currency' => 'eur',
-                'automatic_payment_methods' => ['enabled' => true],
+                //'automatic_payment_methods' => ['enabled' => true],
+                'payment_method_types' => ['card'],
+                'description' => "Commande #$order->id",
                 'metadata' => [
                     'order_id'   => (string) $order->id,
                     'user_id'    => (string) $user->id,
@@ -177,6 +177,7 @@ class StripeController extends Controller
         $provider = 'stripe';
         $providerEventId = (string) $event->id;
 
+        // ✅ idempotence
         try {
             $we = WebhookEvent::firstOrCreate(
                 ['provider' => $provider, 'provider_event_id' => $providerEventId],
@@ -210,15 +211,33 @@ class StripeController extends Controller
                         $payment->save();
                     }
 
-                    if ($orderId && ($order = Order::with('user')->find($orderId))) {
+                    if ($orderId && ($order = Order::with(['user', 'items.product'])->find($orderId))) {
                         $order->payment_status = 'paid';
                         $order->order_status = 'processing';
                         $order->save();
 
-                        // ✅ vide panier DB
-                        $order->user?->cartItems()?->delete();
+                        // ✅ vide panier DB (source: cart->items)
+                        if ($order->user) {
+                            $order->user->cart?->items()->delete();
+                        }
+
+                        // ✅ Email confirmation (idempotent)
+                        if ($order->user && !$order->paid_email_sent_at) {
+                            $order->user->notify(new OrderConfirmed($order));
+                            $order->paid_email_sent_at = now();
+                            $order->save();
+                        }
                     }
                 });
+
+                Log::info('STRIPE_WEBHOOK_RECEIVED', ['type' => $event->type]);
+
+// Dans succeeded :
+                Log::info('STRIPE_PI_SUCCEEDED', [
+                    'order_id' => $orderId,
+                    'payment_id' => $paymentId,
+                ]);
+
             }
 
             if ($event->type === 'payment_intent.payment_failed') {
