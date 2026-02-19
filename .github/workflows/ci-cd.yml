@@ -19,6 +19,13 @@ jobs:
           tools: composer
           coverage: none
 
+      - name: Prepare Laravel folders
+        run: |
+          mkdir -p bootstrap/cache
+          mkdir -p storage/framework/{cache,sessions,views}
+          mkdir -p storage/logs
+          chmod -R 777 bootstrap/cache storage
+
       - name: Cache Composer
         uses: actions/cache@v4
         with:
@@ -35,17 +42,16 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-      - name: PHP lint (artisan file)
+      - name: PHP lint
         run: php -l artisan
 
-      # IMPORTANT: ces 2 commandes vont souvent échouer si ta DB/cache driver nécessite MySQL
-      # donc on les rend non-bloquantes pour une V0 RNCP
+      # Non-bloquant (souvent DB/cache-store dependent)
       - name: Cache config/routes (non-blocking)
         run: |
           php artisan config:cache || true
           php artisan route:cache || true
 
-      - name: Pint (style) (non-blocking)
+      - name: Pint (non-blocking)
         run: |
           if [ -f vendor/bin/pint ]; then vendor/bin/pint --test || true; else echo "Pint not installed"; fi
 
