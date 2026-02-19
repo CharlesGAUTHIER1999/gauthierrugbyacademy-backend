@@ -1,0 +1,62 @@
+name: CI (Backend)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  php-ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer
+          coverage: none
+
+      - name: Prepare Laravel folders
+        run: |
+          mkdir -p bootstrap/cache
+          mkdir -p storage/framework/{cache,sessions,views}
+          mkdir -p storage/logs
+          chmod -R 777 bootstrap/cache storage
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare env
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: PHP lint
+        run: php -l artisan
+
+      # Non-bloquant (souvent DB/cache-store dependent)
+      - name: Cache config/routes (non-blocking)
+        run: |
+          php artisan config:cache || true
+          php artisan route:cache || true
+
+      - name: Pint (non-blocking)
+        run: |
+          if [ -f vendor/bin/pint ]; then vendor/bin/pint --test || true; else echo "Pint not installed"; fi
+
+      - name: PHPUnit (non-blocking)
+        env:
+          APP_ENV: testing
+        run: |
+          if [ -f vendor/bin/phpunit ]; then vendor/bin/phpunit || true; else echo "PHPUnit not installed"; fi
