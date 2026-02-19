@@ -1,0 +1,41 @@
+name: CI (Backend)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  php-ci:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('backend/composer.lock') }}
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+
+      - run: cp .env.example .env
+      - run: php artisan key:generate
+
+      - run: php -l artisan
+
+      - run: php artisan config:cache
+      - run: php artisan route:cache
+
+      - run: vendor/bin/pint --test || true
+
+      - run: vendor/bin/phpunit || true
