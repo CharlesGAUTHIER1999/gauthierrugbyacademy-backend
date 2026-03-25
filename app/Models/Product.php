@@ -30,6 +30,11 @@ class Product extends Model
         'weight',
         'is_active',
         'attributes',
+        'is_customizable',
+        'customization_mode',
+        'allow_text_customization',
+        'allow_image_upload',
+        'allow_ai_generation',
     ];
 
     protected $casts = [
@@ -40,6 +45,10 @@ class Product extends Model
         'is_active'  => 'boolean',
         'attributes' => 'array',
         'group_id'   => 'integer',
+        'is_customizable' => 'boolean',
+        'allow_text_customization' => 'boolean',
+        'allow_image_upload' => 'boolean',
+        'allow_ai_generation' => 'boolean',
     ];
 
     protected $appends = [
