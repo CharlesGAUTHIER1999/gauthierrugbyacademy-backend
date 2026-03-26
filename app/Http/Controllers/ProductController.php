@@ -12,15 +12,13 @@ class ProductController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        // ✅ Pagination safe
         $defaultPerPage = 12;
         $maxPerPage = 60;
         $perPage = (int) $request->query('per_page', $defaultPerPage);
         $perPage = max(1, min($perPage, $maxPerPage));
 
-        // ✅ 1 seul produit par groupe (anti-duplication)
         $query = Product::active()
-            ->select('products.*') // tu peux réduire ici si ton ProductResource n'a pas besoin de tout
+            ->select('products.*')
             ->whereIn('products.id', function ($sub) {
                 $sub->selectRaw('MIN(id)')
                     ->from('products')
@@ -28,28 +26,14 @@ class ProductController extends Controller
                     ->groupBy(DB::raw('COALESCE(group_id, id)'));
             })
             ->with([
-                // ✅ listing: seulement ce qui sert à afficher une carte produit
-                'mainImage',
-                'hoverImage',
-
-                // ⚠️ 'images' retiré du listing (trop lourd) => garde-le dans show()
-                // 'images',
-
-                // si ton listing affiche des badges/catégories
-                'categories:id,slug,parent_id',
-                'categories.parent:id,slug,parent_id',
-
-                // si tu affiches un "type" / variantes / etc.
-                'group:id',
-                'options' => fn ($q) => $q->where('type', 'size')->orderBy('position'),
+                'mainImage:id,product_id,url,is_main,position',
+                'hoverImage:id,product_id,url,is_main,position',
+                'categories:id,name,slug,parent_id',
+                'categories.parent:id,name,slug,parent_id',
+                'group:id,name,slug,type',
+                'options:id,product_id,type,code,label,position',
             ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Filtre par genre (racine)
-        |--------------------------------------------------------------------------
-        | femmes / hommes / nutrition / equipments
-        */
         if ($request->filled('gender')) {
             $gender = (string) $request->query('gender');
 
@@ -58,11 +42,6 @@ class ProductController extends Controller
             });
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Filtre par catégorie EN CONTEXTE
-        |--------------------------------------------------------------------------
-        */
         if ($request->filled('category')) {
             $category = (string) $request->query('category');
 
@@ -79,11 +58,6 @@ class ProductController extends Controller
             }
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Tags (new / bestseller)
-        |--------------------------------------------------------------------------
-        */
         if ($request->filled('tag')) {
             $tag = (string) $request->query('tag');
 
@@ -106,27 +80,24 @@ class ProductController extends Controller
     public function show(string $slug): ProductResource
     {
         $product = Product::with([
-            'supplier',
-            'images',
-            'mainImage',
-            'hoverImage',
-            'categories.parent',
-            'group',
-
-            // variantes (couleurs ou goûts)
-            'group.products' => function ($q) {
-                $q->select('id', 'slug', 'group_id', 'color_code', 'color_label')
-                    ->where('is_active', true);
-            },
-            'group.products.mainImage',
-
+            'supplier:id,name',
+            'images:id,product_id,url,is_main,position',
+            'mainImage:id,product_id,url,is_main,position',
+            'hoverImage:id,product_id,url,is_main,position',
+            'categories:id,name,slug,parent_id',
+            'categories.parent:id,name,slug,parent_id',
+            'group:id,name,slug,type',
+            'group.products:id,group_id,slug,color_code,color_label,is_active',
+            'group.products.mainImage:id,product_id,url,is_main,position',
             'options' => function ($q) {
-                $q->orderBy('position')
+                $q->select('id', 'product_id', 'type', 'code', 'label', 'position')
+                    ->orderBy('position')
                     ->withSum('lots as stock_qty', 'quantity');
             },
-
-            'lots',
-        ])->where('slug', $slug)->firstOrFail();
+            'lots:id,product_id,product_option_id,lot_number,quantity',
+        ])
+            ->where('slug', $slug)
+            ->firstOrFail();
 
         return new ProductResource($product);
     }

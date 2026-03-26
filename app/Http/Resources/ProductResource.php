@@ -112,37 +112,47 @@ class ProductResource extends JsonResource
                 ])->values();
             }),
 
-            'variants' => $this->whenLoaded('group', function () use ($variantType, $variantName) {
-                $products = $this->group?->products ?? collect();
+            'variants' => $this->when(
+                $this->relationLoaded('group') && $this->group && $this->group->relationLoaded('products'),
+                function () use ($variantType, $variantName) {
+                    return $this->group->products->map(function ($p) use ($variantType, $variantName) {
+                        $img = $p->relationLoaded('mainImage')
+                            ? $p->mainImage
+                            : null;
 
-                return $products->map(function ($p) use ($variantType, $variantName) {
-                    $img = $p->relationLoaded('mainImage')
-                        ? $p->mainImage
-                        : ($p->relationLoaded('images') ? $p->images->firstWhere('is_main', true) : null);
+                        $url = is_object($img)
+                            ? $img->full_url
+                            : (is_string($img) ? asset('storage/' . ltrim($img, '/')) : null);
 
-                    $url = is_object($img)
-                        ? $img->full_url
-                        : (is_string($img) ? asset('storage/' . ltrim($img, '/')) : null);
+                        return [
+                            'id'   => $p->id,
+                            'slug' => $p->slug,
 
-                    return [
-                        'id'   => $p->id,
-                        'slug' => $p->slug,
+                            'color_code'  => $p->color_code,
+                            'color_label' => $p->color_label,
 
-                        'color_code'  => $p->color_code,
-                        'color_label' => $p->color_label,
+                            'variant_type'        => $variantType,
+                            'variant_name'        => $variantName,
+                            'variant_value_code'  => $p->color_code,
+                            'variant_value_label' => $p->color_label,
 
-                        'variant_type'        => $variantType,
-                        'variant_name'        => $variantName,
-                        'variant_value_code'  => $p->color_code,
-                        'variant_value_label' => $p->color_label,
+                            'flavor_code'  => $variantType === 'flavor' ? $p->color_code : null,
+                            'flavor_label' => $variantType === 'flavor' ? $p->color_label : null,
 
-                        'flavor_code'  => $variantType === 'flavor' ? $p->color_code : null,
-                        'flavor_label' => $variantType === 'flavor' ? $p->color_label : null,
+                            'thumb_url' => $url,
+                        ];
+                    })->values();
+                }
+            ),
 
-                        'thumb_url' => $url,
-                    ];
-                })->values();
-            }),
+            'is_customizable' => (bool) $this->is_customizable,
+
+            'customization' => [
+                'mode' => $this->customization_mode,
+                'text' => (bool) $this->allow_text_customization,
+                'image' => (bool) $this->allow_image_upload,
+                'ai' => (bool) $this->allow_ai_generation,
+            ],
 
             'is_active'  => (bool) $this->is_active,
             'created_at' => $this->created_at?->toISOString(),
