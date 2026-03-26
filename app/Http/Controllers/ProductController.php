@@ -52,14 +52,14 @@ class ProductController extends Controller
                     $q->where('slug', 'like', $gender . '%-' . $category);
                 });
             } else {
-                $query->whereHas('categories', function ($q) use ($category) {
-                    $q->where('slug', 'like', '%-' . $category);
+                $query->whereHas('categories', function ($q) use ($request) {
+                    $q->where('slug', 'like', '%-' . $request->category);
                 });
             }
         }
 
         if ($request->filled('tag')) {
-            $tag = (string) $request->query('tag');
+            $tag = (string) $request->get('tag');
 
             if ($tag === 'new') {
                 $query->orderByDesc('created_at')->orderByDesc('products.id');
@@ -71,6 +71,8 @@ class ProductController extends Controller
         } else {
             $query->orderByDesc('products.id');
         }
+
+        $perPage = (int) $request->get('per_page', $defaultPerPage);
 
         return ProductResource::collection(
             $query->paginate($perPage)

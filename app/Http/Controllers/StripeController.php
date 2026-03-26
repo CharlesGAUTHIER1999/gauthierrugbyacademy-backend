@@ -52,6 +52,7 @@ class StripeController extends Controller
             'cart_items_ids' => $cartItems->pluck('id')->all(),
         ]);
 
+
         if ($cartItems->isEmpty()) {
             return response()->json(['message' => 'Panier vide'], 400);
         }
@@ -224,7 +225,7 @@ class StripeController extends Controller
                         $payment->save();
                     }
 
-                    if ($orderId && ($order = Order::with(['user', 'items.product'])->find($orderId))) {
+                    if ($orderId && ($order = Order::with('user')->find($orderId))) {
                         $order->payment_status = 'paid';
                         $order->order_status = 'processing';
                         $order->save();
