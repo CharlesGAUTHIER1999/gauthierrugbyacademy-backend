@@ -679,6 +679,35 @@ class ProductSeeder extends Seeder
         ],
     ];
 
+
+    private function customizationConfig(string $name, string $categorySlug): array
+    {
+        $isCustomizable =
+            str_contains($categorySlug, 'tshirts') ||
+            str_contains($categorySlug, 'sweats') ||
+            str_contains($categorySlug, 'shorts') ||
+            str_contains($categorySlug, 'pantalons') ||
+            $name === 'Bandeau Training';
+
+        if ($isCustomizable) {
+            return [
+                'is_customizable' => true,
+                'customization_mode' => 'hybrid',
+                'allow_text_customization' => true,
+                'allow_image_upload' => true,
+                'allow_ai_generation' => true,
+            ];
+        }
+
+        return [
+            'is_customizable' => false,
+            'customization_mode' => null,
+            'allow_text_customization' => false,
+            'allow_image_upload' => false,
+            'allow_ai_generation' => false,
+        ];
+    }
+
     public function run(): void
     {
         $supplier = Supplier::inRandomOrder()->first();
@@ -1100,7 +1129,7 @@ class ProductSeeder extends Seeder
                     $description = $productMeta['description'] ?? "Description détaillée de $name.";
 
                     $priceHt = round($priceTtc / (1 + $vat / 100), 2);
-
+                    $customization = $this->customizationConfig($name, $category_slug);
                     $product = Product::create([
                         'supplier_id' => $supplier->id,
                         'name' => $name,
@@ -1112,6 +1141,11 @@ class ProductSeeder extends Seeder
                         'sku' => strtoupper(Str::slug($name)) . '-' . rand(1000, 9999),
                         'attributes' => null,
                         'is_active' => true,
+                        'is_customizable' => $customization['is_customizable'],
+                        'customization_mode' => $customization['customization_mode'],
+                        'allow_text_customization' => $customization['allow_text_customization'],
+                        'allow_image_upload' => $customization['allow_image_upload'],
+                        'allow_ai_generation' => $customization['allow_ai_generation'],
                     ]);
 
                     $product->categories()->attach($category->id);
