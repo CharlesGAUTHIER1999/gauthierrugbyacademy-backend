@@ -4,18 +4,27 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OrderItem extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'order_id',
         'product_id',
         'product_option_id',
+        'custom_product_session_id',
         'lot_id',
         'unit_price',
         'quantity',
         'total',
+        'customization_snapshot',
+        'customization_preview_path',
+    ];
+
+    protected $casts = [
+        'customization_snapshot' => 'array',
     ];
 
     public function order() {
@@ -33,5 +42,10 @@ class OrderItem extends Model
 
     public function lot() {
         return $this->belongsTo(StockLot::class);
+    }
+
+    public function customProductSession(): BelongsTo
+    {
+        return $this->belongsTo(CustomProductSession::class);
     }
 }

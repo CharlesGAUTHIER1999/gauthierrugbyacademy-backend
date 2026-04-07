@@ -42,7 +42,7 @@ class StripeController extends Controller
         $cart = $user->cart()->firstOrCreate(['user_id' => $user->id]);
 
         $cartItems = $cart->items()
-            ->with(['product', 'option'])
+            ->with(['product', 'option', 'customProductSession'])
             ->get();
 
         Log::info('PAYMENT_INTENT_CART_CHECK', [
@@ -70,8 +70,8 @@ class StripeController extends Controller
                     abort(422, 'Produit introuvable dans le panier.');
                 }
 
-                $unitTtc = $ci->option?->price_ttc ?? $product->price_ttc;
-                $unitHt  = $ci->option?->price_ht ?? $product->price_ht;
+                $unitTtc = $ci->customProductSession?->unit_price_snapshot ?? $ci->option?->price_ttc ?? $product->price_ttc;
+                $unitHt = $ci->option?->price_ht ?? $product->price_ht;
                 $qty = (int) $ci->quantity;
 
                 $totalTtc += ((float) $unitTtc) * $qty;
@@ -111,14 +111,30 @@ class StripeController extends Controller
                 $unitTtc = $ci->option?->price_ttc ?? $product->price_ttc;
                 $qty = (int) $ci->quantity;
 
-                OrderItem::create([
-                    'order_id'          => $order->id,
-                    'product_id'        => $product->id,
+                $customSession = $ci->customProductSession;
+
+                Log::info('ORDER_ITEM_CUSTOM_DEBUG', [
+                    'cart_item_id' => $ci->id,
+                    'product_id' => $ci->product_id,
                     'product_option_id' => $ci->product_option_id,
-                    'lot_id'            => null,
-                    'unit_price'        => round((float) $unitTtc, 2),
-                    'quantity'          => $qty,
-                    'total'             => round(((float) $unitTtc) * $qty, 2),
+                    'custom_product_session_id_on_cart_item' => $ci->custom_product_session_id,
+                    'custom_session_loaded' => (bool)$customSession,
+                    'custom_session_id' => $customSession?->id,
+                    'custom_session_configuration' => $customSession?->configuration,
+                    'custom_session_preview_image_path' => $customSession?->preview_image_path,
+                ]);
+
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $product->id,
+                    'product_option_id' => $ci->product_option_id,
+                    'custom_product_session_id' => $customSession?->id,
+                    'lot_id' => null,
+                    'unit_price' => round((float) $unitTtc, 2),
+                    'quantity' => $qty,
+                    'total' => round(((float) $unitTtc) * $qty, 2),
+                    'customization_snapshot' => $customSession?->configuration,
+                    'customization_preview_path' => $customSession?->preview_image_path,
                 ]);
             }
 

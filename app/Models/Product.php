@@ -114,6 +114,14 @@ class Product extends Model
         return $this->hasMany(CartItem::class);
     }
 
+    public function designs() {
+        return $this->hasMany(Design::class);
+    }
+
+    public function customizationSessions() {
+        return $this->hasMany(CustomProductSession::class);
+    }
+
     /* ================= ACCESSORS ================= */
 
     public function getMainImageAttribute(): ?string
