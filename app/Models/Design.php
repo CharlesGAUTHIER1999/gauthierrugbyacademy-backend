@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Design extends Model
 {
@@ -19,10 +20,12 @@ class Design extends Model
         'provider',
         'provider_job_id',
         'metadata',
+        'configuration'
     ];
 
     protected $casts = [
         'metadata' => 'array',
+        'configuration' => 'array'
     ];
 
     public function user(): BelongsTo
@@ -38,5 +41,9 @@ class Design extends Model
     public function productOption(): BelongsTo
     {
         return $this->belongsTo(ProductOption::class);
+    }
+
+    public function assets(): HasMany {
+        return $this->hasMany(DesignAsset::class);
     }
 }

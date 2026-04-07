@@ -524,29 +524,17 @@ class ProductSeeder extends Seeder
 
         'hommes-tshirts' => [
             'oversize' => [
-                'main'   => 'hommes/tshirts/oversize1.jpg',
-                'hover'  => 'hommes/tshirts/oversize2.jpg',
+                'main'   => 'hommes/tshirts/noir1.png',
+                'hover'  => 'hommes/tshirts/noir2.png',
                 'detail' => [
-                    'hommes/tshirts/oversize3.jpg',
-                    'hommes/tshirts/oversize4.jpg',
-                    'hommes/tshirts/oversize5.jpg',
-                    'hommes/tshirts/oversize6.jpg',
-                    'hommes/tshirts/oversize7.jpg',
-                    'hommes/tshirts/oversize8.jpg',
-                    'hommes/tshirts/oversize9.jpg',
+                    'hommes/tshirts/noir3.png',
                 ],
             ],
             'training' => [
-                'main'   => 'hommes/tshirts/training1.jpg',
-                'hover'  => 'hommes/tshirts/training2.jpg',
+                'main'   => 'hommes/tshirts/blanc1.png',
+                'hover'  => 'hommes/tshirts/blanc2.png',
                 'detail' => [
-                    'hommes/tshirts/training3.jpg',
-                    'hommes/tshirts/training4.jpg',
-                    'hommes/tshirts/training5.jpg',
-                    'hommes/tshirts/training6.jpg',
-                    'hommes/tshirts/training7.jpg',
-                    'hommes/tshirts/training8.jpg',
-                    'hommes/tshirts/training9.jpg',
+                    'hommes/tshirts/blanc3.png',
                 ],
             ],
         ],
