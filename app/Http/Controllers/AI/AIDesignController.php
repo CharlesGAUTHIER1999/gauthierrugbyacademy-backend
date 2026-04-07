@@ -5,6 +5,8 @@ namespace App\Http\Controllers\AI;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GenerateDesignRequest;
 use App\Models\Design;
+use App\Models\DesignAsset;
+use App\Models\Product;
 use App\Models\PromptHistory;
 use App\Services\AI\OpenAIImageService;
 use Illuminate\Http\Client\ConnectionException;
@@ -19,6 +21,11 @@ class AIDesignController extends Controller
         GenerateDesignRequest $request,
         OpenAIImageService $openAIImageService
     ): JsonResponse {
+
+        $product = Product::findOrFail($request->validated('product_id'));
+        abort_unless($product->is_customizable, 422, 'This product is not customizable.');
+        abort_unless($product->allow_ai_generation, 422, 'AI generation is not allowed for this product.');
+
         $result = $openAIImageService->generateImage(
             $request->validated('prompt'),
             'fitness_design'
@@ -35,6 +42,16 @@ class AIDesignController extends Controller
             'preview_url' => $result['url'],
             'provider' => 'openai',
             'metadata' => $result['payload'],
+            'configuration' => $request->validated('configuration') ?? null,
+        ]);
+
+        DesignAsset::create([
+            'design_id' => $design->id,
+            'type' => 'generated',
+            'path' => $result['path'],
+            'mime_type' => 'image/png',
+            'size' => null,
+            'is_primary' => true,
         ]);
 
         PromptHistory::create([
@@ -48,7 +65,7 @@ class AIDesignController extends Controller
 
         return response()->json([
             'message' => 'Design generated successfully.',
-            'data' => $design,
+            'data' => $design->load('assets'),
         ], 201);
     }
 }
