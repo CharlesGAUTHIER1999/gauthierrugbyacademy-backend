@@ -81,6 +81,7 @@ class StripeController extends Controller
             $totalTtc = round($totalTtc, 2);
             $totalHt  = round($totalHt, 2);
 
+            // 2) Order
             $order = Order::create([
                 'user_id'        => $user->id,
                 'total_ht'       => $totalHt,
@@ -89,6 +90,7 @@ class StripeController extends Controller
                 'order_status'   => 'new',
             ]);
 
+            // 3) Shipment (structuré)
             Shipment::create([
                 'order_id'  => $order->id,
                 'firstname' => $data['shipping']['firstname'],
@@ -101,10 +103,10 @@ class StripeController extends Controller
                 'status'    => 'pending',
             ]);
 
+            // 4) Items
             foreach ($cartItems as $ci) {
                 $product = $ci->product;
-
-                if (! $product) {
+                if (!$product) {
                     abort(422, 'Produit introuvable dans le panier.');
                 }
 
@@ -138,20 +140,23 @@ class StripeController extends Controller
                 ]);
             }
 
+            // 5) Payment row
             $payment = Payment::create([
-                'order_id'            => $order->id,
-                'provider'            => 'stripe',
-                'provider_payment_id' => null,
-                'amount'              => $totalTtc,
-                'status'              => 'pending',
-                'raw_payload'         => null,
+                'order_id'             => $order->id,
+                'provider'             => 'stripe',
+                'provider_payment_id'  => null,
+                'amount'               => $totalTtc,
+                'status'               => 'pending',
+                'raw_payload'          => null,
             ]);
 
+            // 6) Stripe PaymentIntent
             $intent = $stripe->paymentIntents->create([
-                'amount' => (int) round($totalTtc * 100),
+                'amount'   => (int) round($totalTtc * 100),
                 'currency' => 'eur',
+                //'automatic_payment_methods' => ['enabled' => true],
                 'payment_method_types' => ['card'],
-                'description' => "Commande #{$order->id}",
+                'description' => "Commande #$order->id",
                 'metadata' => [
                     'order_id'   => (string) $order->id,
                     'user_id'    => (string) $user->id,
@@ -175,8 +180,6 @@ class StripeController extends Controller
 
     public function webhook(Request $request): JsonResponse
     {
-        Log::info('STRIPE_WEBHOOK_HIT');
-
         $endpointSecret = env('STRIPE_WEBHOOK_SECRET');
         $payload = $request->getContent();
         $sig = $request->header('Stripe-Signature');
@@ -184,16 +187,13 @@ class StripeController extends Controller
         try {
             $event = Webhook::constructEvent($payload, $sig, $endpointSecret);
         } catch (Exception $e) {
-            Log::error('STRIPE_WEBHOOK_SIGNATURE_FAILED', [
-                'message' => $e->getMessage(),
-            ]);
-
             return response()->json(['error' => $e->getMessage()], 400);
         }
 
         $provider = 'stripe';
         $providerEventId = (string) $event->id;
 
+        // ✅ idempotence
         try {
             $we = WebhookEvent::firstOrCreate(
                 ['provider' => $provider, 'provider_event_id' => $providerEventId],
@@ -217,22 +217,8 @@ class StripeController extends Controller
         try {
             if ($event->type === 'payment_intent.succeeded') {
                 $pi = $event->data->object;
-
-                $meta = method_exists($pi->metadata, 'toArray')
-                    ? $pi->metadata->toArray()
-                    : (array) $pi->metadata;
-
-                $orderId = $meta['order_id'] ?? null;
-                $paymentId = $meta['payment_id'] ?? null;
-
-                Log::info('STRIPE_WEBHOOK_RECEIVED', [
-                    'type' => $event->type,
-                ]);
-
-                Log::info('STRIPE_PI_METADATA', [
-                    'payment_intent_id' => $pi->id ?? null,
-                    'metadata' => $meta,
-                ]);
+                $orderId = $pi->metadata->order_id ?? null;
+                $paymentId = $pi->metadata->payment_id ?? null;
 
                 DB::transaction(function () use ($pi, $orderId, $paymentId) {
                     if ($paymentId && ($payment = Payment::find($paymentId))) {
@@ -241,16 +227,18 @@ class StripeController extends Controller
                         $payment->save();
                     }
 
-                    if ($orderId && ($order = Order::with('user')->find($orderId))) {
+                    if ($orderId && ($order = Order::with(['user', 'items.product'])->find($orderId))) {
                         $order->payment_status = 'paid';
                         $order->order_status = 'processing';
                         $order->save();
 
+                        // ✅ vide panier DB (source: cart->items)
                         if ($order->user) {
                             $order->user->cart?->items()->delete();
                         }
 
-                        if ($order->user && ! $order->paid_email_sent_at) {
+                        // ✅ Email confirmation (idempotent)
+                        if ($order->user && !$order->paid_email_sent_at) {
                             $order->user->notify(new OrderConfirmed($order));
                             $order->paid_email_sent_at = now();
                             $order->save();
@@ -258,21 +246,20 @@ class StripeController extends Controller
                     }
                 });
 
+                Log::info('STRIPE_WEBHOOK_RECEIVED', ['type' => $event->type]);
+
+// Dans succeeded :
                 Log::info('STRIPE_PI_SUCCEEDED', [
                     'order_id' => $orderId,
                     'payment_id' => $paymentId,
                 ]);
+
             }
 
             if ($event->type === 'payment_intent.payment_failed') {
                 $pi = $event->data->object;
-
-                $meta = method_exists($pi->metadata, 'toArray')
-                    ? $pi->metadata->toArray()
-                    : (array) $pi->metadata;
-
-                $orderId = $meta['order_id'] ?? null;
-                $paymentId = $meta['payment_id'] ?? null;
+                $orderId = $pi->metadata->order_id ?? null;
+                $paymentId = $pi->metadata->payment_id ?? null;
 
                 DB::transaction(function () use ($pi, $orderId, $paymentId) {
                     if ($paymentId && ($payment = Payment::find($paymentId))) {
@@ -294,12 +281,7 @@ class StripeController extends Controller
 
             return response()->json(['status' => 'success']);
         } catch (Throwable $e) {
-            Log::error('STRIPE_WEBHOOK_FAILED', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            if ($we && method_exists($we, 'failures')) {
+            if ($we) {
                 $we->failures()->create([
                     'error_message' => $e->getMessage(),
                     'retry_count' => 0,
