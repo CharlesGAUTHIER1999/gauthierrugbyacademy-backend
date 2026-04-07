@@ -11,13 +11,16 @@ class CartItem extends Model
     use HasFactory;
 
     protected $fillable = [
-        'cart_id', 'product_id', 'product_option_id', 'quantity'
+        'cart_id',
+        'product_id',
+        'product_option_id',
+        'custom_product_session_id',
+        'quantity'
     ];
 
     protected $casts = [
         'quantity' => 'integer',
     ];
-
 
     public function cart(): BelongsTo
     {
@@ -33,5 +36,9 @@ class CartItem extends Model
     {
         return $this->belongsTo(ProductOption::class, 'product_option_id');
     }
-}
 
+    public function customProductSession(): BelongsTo
+    {
+        return $this->belongsTo(CustomProductSession::class, 'custom_product_session_id');
+    }
+}

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\AddToCartRequest;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\CustomProductSession;
 use App\Models\StockLot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -17,25 +19,21 @@ class CartController extends Controller
         $cart->load([
             'items.product.group',
             'items.product.categories.parent',
-            'items.option'
+            'items.option',
+            'items.customProductSession.design',
         ]);
 
         return response()->json($this->formatCart($cart));
     }
 
-    public function add(Request $request)
+    public function add(AddToCartRequest $request)
     {
-        $data = $request->validate([
-            'product_id' => ['required', 'exists:products,id'],
-            'product_option_id' => ['nullable', 'exists:product_options,id'],
-            'quantity' => ['nullable', 'integer', 'min:1']
-        ]);
+        $data = $request->validated();
 
         $qty = (int) ($data['quantity'] ?? 1);
 
         $cart = Cart::firstOrCreate(['user_id' => $request->user()->id]);
 
-        // Vérif stock réel
         $stock = StockLot::where('product_id', $data['product_id'])
             ->when($data['product_option_id'] ?? null, fn ($q) =>
             $q->where('product_option_id', $data['product_option_id'])
@@ -46,15 +44,36 @@ class CartController extends Controller
             return response()->json(['message' => 'Stock insuffisant'], 422);
         }
 
-        // ✅ FIX: firstOrNew pour éviter INSERT sans quantity
-        $item = CartItem::firstOrNew([
-            'cart_id' => $cart->id,
-            'product_id' => $data['product_id'],
-            'product_option_id' => $data['product_option_id'] ?? null
-        ]);
+        $customSessionId = $data['custom_product_session_id'] ?? null;
 
-        $item->quantity = ((int) $item->quantity) + $qty;
-        $item->save();
+        if ($customSessionId) {
+            $session = CustomProductSession::findOrFail($customSessionId);
+
+            abort_unless((int) $session->user_id === (int) $request->user()->id, 403);
+            abort_unless((int) $session->product_id === (int) $data['product_id'], 422, 'Customization session does not match product.');
+
+            $item = CartItem::create([
+                'cart_id' => $cart->id,
+                'product_id' => $data['product_id'],
+                'product_option_id' => $data['product_option_id'] ?? null,
+                'custom_product_session_id' => $customSessionId,
+                'quantity' => $qty,
+            ]);
+
+            $session->update([
+                'status' => 'added_to_cart',
+            ]);
+        } else {
+            $item = CartItem::firstOrNew([
+                'cart_id' => $cart->id,
+                'product_id' => $data['product_id'],
+                'product_option_id' => $data['product_option_id'] ?? null,
+                'custom_product_session_id' => null,
+            ]);
+
+            $item->quantity = ((int) $item->quantity) + $qty;
+            $item->save();
+        }
 
         return $this->show($request);
     }
@@ -77,23 +96,32 @@ class CartController extends Controller
     {
         abort_unless($item->cart->user_id === $request->user()->id, 404);
 
+        if ($item->customProductSession) {
+            $item->customProductSession->update([
+                'status' => 'ready',
+            ]);
+        }
+
         $item->delete();
 
         return $this->show($request);
     }
 
-    private function formatCart(Cart $cart)
+    private function formatCart(Cart $cart): array
     {
         $items = $cart->items->map(function ($item) {
             $product = $item->product;
             $option  = $item->option;
+            $customSession = $item->customProductSession;
 
-            $unit = $option?->price_ttc ?? $product->price_ttc ?? 0;
+            $unit = $customSession?->unit_price_snapshot
+                ?? $option?->price_ttc
+                ?? $product->price_ttc
+                ?? 0;
 
-            // --- variant (Couleur / Goûts) ---
             $variantType = $product->group?->type;
 
-            if (!$variantType) {
+            if (! $variantType) {
                 $cat = $product->categories?->first();
                 $root = $cat?->parent?->slug ?? $cat?->slug;
                 $variantType = $root === 'nutrition' ? 'flavor' : 'color';
@@ -102,29 +130,37 @@ class CartController extends Controller
             $variantTitle = $variantType === 'flavor' ? 'Goût' : 'Couleur';
             $variantValue = $product->color_label;
 
-            // --- size / option label ---
             $sizeLabel = null;
             if ($option && $option->type === 'size') {
                 $sizeLabel = $option->label ?? $option->code;
             }
 
             return [
-                'id'         => $item->id,
+                'id' => $item->id,
                 'product_id' => $item->product_id,
-                'name'       => $product->name,
-                // ✅ IMPORTANT : renvoyer URL publique, pas "products/..."
-                'image'      => $this->publicImageUrl($product->main_image) ?? '/placeholder.jpg',
-                'quantity'   => (int) $item->quantity,
+                'custom_product_session_id' => $customSession?->id,
+                'is_customized' => (bool) $customSession,
+                'name' => $product->name,
+                'image' => $customSession?->preview_image_path
+                    ? $this->publicImageUrl($customSession->preview_image_path)
+                    : ($this->publicImageUrl($product->main_image) ?? '/placeholder.jpg'),
+                'quantity' => (int) $item->quantity,
                 'unit_price' => round((float) $unit, 2),
                 'line_total' => round((float) $unit * (int) $item->quantity, 2),
                 'variant_title' => $variantValue ? $variantTitle : null,
                 'variant_value' => $variantValue ?: null,
-                'size'          => $sizeLabel,
+                'size' => $sizeLabel,
                 'delivery_text' => 'Délai de livraison : 4–7 jours ouvrés',
                 'option' => $option ? [
-                    'id'    => $option->id,
+                    'id' => $option->id,
                     'label' => $option->label ?? $option->code,
-                    'type'  => $option->type,
+                    'type' => $option->type,
+                ] : null,
+                'customization' => $customSession ? [
+                    'status' => $customSession->status,
+                    'preview_image_path' => $this->publicImageUrl($customSession->preview_image_path),
+                    'configuration' => $customSession->configuration,
+                    'design_id' => $customSession->design_id,
                 ] : null,
             ];
         });
@@ -132,37 +168,29 @@ class CartController extends Controller
         $subtotal = (float) $items->sum('line_total');
 
         return [
-            'items'    => $items->values(),
-            'count'    => (int) $items->sum('quantity'),
+            'items' => $items->values(),
+            'count' => (int) $items->sum('quantity'),
             'subtotal' => round($subtotal, 2),
             'currency' => 'EUR',
         ];
     }
 
-    /**
-     * Transforme "products/xxx.jpg" (DB) en URL publique "/storage/products/xxx.jpg"
-     * ou laisse tel quel si déjà une URL absolue.
-     */
     private function publicImageUrl(?string $path): ?string
     {
-        if (!$path) return null;
+        if (! $path) {
+            return null;
+        }
 
-        // Déjà une URL complète
         if (Str::startsWith($path, ['http://', 'https://'])) {
             return $path;
         }
 
-        // Normalise
         $path = ltrim($path, '/');
 
-        // DB contient déjà storage/...
         if (Str::startsWith($path, 'storage/')) {
             return url('/' . $path);
         }
 
-        // DB contient products/...
         return url('/storage/' . $path);
-
-        // fallback générique
     }
 }
