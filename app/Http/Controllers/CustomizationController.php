@@ -49,7 +49,15 @@ class CustomizationController extends Controller
 
         return response()->json([
             'message' => 'Customization session created.',
-            'data' => $session,
+            'data' => $session->load([
+                'product.group',
+                'product.categories',
+                'product.images',
+                'product.mainImage',
+                'product.hoverImage',
+                'productOption',
+                'design',
+            ]),
         ], 201);
     }
 
@@ -58,7 +66,15 @@ class CustomizationController extends Controller
         $this->authorizeOwner($customizationSession->user_id, request()->user()->id);
 
         return response()->json([
-            'data' => $customizationSession->load(['product', 'productOption', 'design']),
+            'data' => $customizationSession->load([
+                'product.group',
+                'product.categories',
+                'product.images',
+                'product.mainImage',
+                'product.hoverImage',
+                'productOption',
+                'design',
+            ]),
         ]);
     }
 
@@ -90,7 +106,15 @@ class CustomizationController extends Controller
 
         return response()->json([
             'message' => 'Customization session updated.',
-            'data' => $customizationSession->fresh(['product', 'productOption', 'design']),
+            'data' => $customizationSession->fresh([
+                'product.group',
+                'product.categories',
+                'product.images',
+                'product.mainImage',
+                'product.hoverImage',
+                'productOption',
+                'design',
+            ]),
         ]);
     }
 

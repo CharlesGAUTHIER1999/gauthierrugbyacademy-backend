@@ -14,6 +14,7 @@ class ProductController extends Controller
     {
         $defaultPerPage = 12;
         $maxPerPage = 60;
+
         $perPage = (int) $request->query('per_page', $defaultPerPage);
         $perPage = max(1, min($perPage, $maxPerPage));
 
@@ -38,31 +39,25 @@ class ProductController extends Controller
             $gender = (string) $request->query('gender');
 
             $query->whereHas('categories', function ($q) use ($gender) {
-                $q->where('slug', 'like', $gender . '%');
+                $q->where('slug', $gender)
+                    ->orWhere('slug', 'like', $gender . '-%');
             });
         }
 
         if ($request->filled('category')) {
             $category = (string) $request->query('category');
 
-            if ($request->filled('gender')) {
-                $gender = (string) $request->query('gender');
-
-                $query->whereHas('categories', function ($q) use ($gender, $category) {
-                    $q->where('slug', 'like', $gender . '%-' . $category);
-                });
-            } else {
-                $query->whereHas('categories', function ($q) use ($request) {
-                    $q->where('slug', 'like', '%-' . $request->category);
-                });
-            }
+            $query->whereHas('categories', function ($q) use ($category) {
+                $q->where('slug', $category);
+            });
         }
 
         if ($request->filled('tag')) {
-            $tag = (string) $request->get('tag');
+            $tag = (string) $request->query('tag');
 
             if ($tag === 'new') {
-                $query->orderByDesc('created_at')->orderByDesc('products.id');
+                $query->orderByDesc('created_at')
+                    ->orderByDesc('products.id');
             } elseif ($tag === 'bestseller') {
                 $query->orderByDesc('products.id');
             } else {
@@ -71,8 +66,6 @@ class ProductController extends Controller
         } else {
             $query->orderByDesc('products.id');
         }
-
-        $perPage = (int) $request->get('per_page', $defaultPerPage);
 
         return ProductResource::collection(
             $query->paginate($perPage)
