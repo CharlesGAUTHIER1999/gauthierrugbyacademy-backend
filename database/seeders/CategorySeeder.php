@@ -12,34 +12,26 @@ class CategorySeeder extends Seeder
     {
         // Désactivation temporaire des FK
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-
         DB::table('product_category')->truncate();
         Category::truncate();
-
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
         $categories = [
             'femmes' => [
                 'type' => 'clothing',
                 'children' => [
-                    'leggings',
-                    'joggings',
+                    'pantalons',
                     'sweats',
                     'vestes',
-                    'shorts',
-                    'brassieres',
                     'tshirts',
-                    'accessoires',
                 ],
             ],
             'hommes' => [
                 'type' => 'clothing',
                 'children' => [
-                    'accessoires',
                     'sweats',
                     'vestes',
                     'pantalons',
-                    'shorts',
                     'tshirts',
                 ],
             ],
