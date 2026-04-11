@@ -17,13 +17,13 @@ class UserSeeder extends Seeder
             [
                 'firstname' => 'Charles',
                 'lastname'  => 'Gauthier',
-                'password'  => Hash::make('password'),
+                'password'  => Hash::make('Bordeaux2025@'),
                 'phone'     => null,
                 'is_b2b'    => false,
                 'company_name' => null,
-                'address' => '10 Rue de la Paix',
-                'city'    => 'Paris',
-                'zip'     => '75002',
+                'address' => '34 Rue du Vélodrome',
+                'city'    => 'Bordeaux',
+                'zip'     => '33200',
                 'email_verified_at' => now(),
             ]
         );

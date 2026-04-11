@@ -51,6 +51,7 @@ class ProductResource extends JsonResource
             'group' => $this->whenLoaded('group', fn () => [
                 'id'   => $this->group?->id,
                 'name' => $this->group?->name,
+                'slug' => $this->group?->slug,
                 'type' => $this->group?->type,
             ]),
 
