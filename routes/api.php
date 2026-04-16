@@ -12,6 +12,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\CustomizationController;
+use App\Http\Controllers\CustomizationAssetController;
 use App\Http\Controllers\AI\AIDesignController;
 
 // Public auth
@@ -46,10 +47,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::post('/orders', [OrderController::class, 'store']);
 
+    // Customization sessions
     Route::post('/customization/sessions', [CustomizationController::class, 'store']);
     Route::get('/customization/sessions/{customizationSession}', [CustomizationController::class, 'show']);
     Route::patch('/customization/sessions/{customizationSession}', [CustomizationController::class, 'update']);
 
+    // Customization assets
+    Route::post('/customization/assets/logo', [CustomizationAssetController::class, 'uploadLogo']);
+    Route::post('/customization/assets/image', [CustomizationAssetController::class, 'uploadImage']);
+
+    // AI
     Route::post('/ai/designs/generate', AIDesignController::class);
 });
 
