@@ -15,7 +15,7 @@ class ProductController extends Controller
         $defaultPerPage = 12;
         $maxPerPage = 60;
 
-        $perPage = (int) $request->query('per_page', $defaultPerPage);
+        $perPage = (int)$request->query('per_page', $defaultPerPage);
         $perPage = max(1, min($perPage, $maxPerPage));
 
         $query = Product::active()
@@ -36,7 +36,7 @@ class ProductController extends Controller
             ]);
 
         if ($request->filled('gender')) {
-            $gender = (string) $request->query('gender');
+            $gender = (string)$request->query('gender');
 
             $query->whereHas('categories', function ($q) use ($gender) {
                 $q->where('slug', $gender)
@@ -45,7 +45,7 @@ class ProductController extends Controller
         }
 
         if ($request->filled('category')) {
-            $category = (string) $request->query('category');
+            $category = (string)$request->query('category');
 
             $query->whereHas('categories', function ($q) use ($category) {
                 $q->where('slug', $category);
@@ -53,7 +53,7 @@ class ProductController extends Controller
         }
 
         if ($request->filled('tag')) {
-            $tag = (string) $request->query('tag');
+            $tag = (string)$request->query('tag');
 
             if ($tag === 'new') {
                 $query->orderByDesc('created_at')
@@ -90,9 +90,7 @@ class ProductController extends Controller
                     ->withSum('lots as stock_qty', 'quantity');
             },
             'lots:id,product_id,product_option_id,lot_number,quantity',
-        ])
-            ->where('slug', $slug)
-            ->firstOrFail();
+        ])->where('slug', $slug)->firstOrFail();
 
         return new ProductResource($product);
     }
