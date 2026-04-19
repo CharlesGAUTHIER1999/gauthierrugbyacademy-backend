@@ -26,7 +26,6 @@ class OrderController extends Controller
 
     public function show(Request $request, Order $order): JsonResponse
     {
-        // ✅ empêche un user de lire la commande d'un autre
         abort_unless($order->user_id === $request->user()->id, 404);
 
         $order->load([
