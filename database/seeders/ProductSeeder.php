@@ -515,7 +515,7 @@ class ProductSeeder extends Seeder
         if ($isCustomizable) {
             return [
                 'is_customizable' => true,
-                'customization_mode' => 'hybrid',
+                'customization_mode' => '3d',
                 'allow_text_customization' => true,
                 'allow_image_upload' => true,
                 'allow_ai_generation' => true,
